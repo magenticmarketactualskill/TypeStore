@@ -8,6 +8,10 @@ class WebhookSubscription < ApplicationRecord
     schema.updated
   ].freeze
 
+  # Serialize arrays as JSON for SQLite compatibility
+  serialize :events, coder: JSON
+  serialize :schema_refs, coder: JSON
+
   # Associations
   belongs_to :user
 
@@ -15,27 +19,58 @@ class WebhookSubscription < ApplicationRecord
   validates :url, presence: true, format: { with: URI::DEFAULT_PARSER.make_regexp(%w[http https]) }
   validates :events, presence: true
 
+  # Callbacks
+  before_validation :initialize_arrays
+
   # Scopes
   scope :active, -> { where(active: true) }
   scope :inactive, -> { where(active: false) }
-  scope :for_event, ->(event) { where('? = ANY(events)', event) }
-  scope :for_schema, ->(ref) { where('? = ANY(schema_refs)', ref) }
+
+  # Find subscriptions for a specific event (SQLite compatible)
+  def self.for_event(event)
+    where("events LIKE ?", "%#{event}%")
+  end
+
+  # Find subscriptions for a specific schema (SQLite compatible)
+  def self.for_schema(ref)
+    where("schema_refs LIKE ?", "%#{ref}%")
+  end
 
   # Find subscriptions matching a schema and event
   def self.matching(schema_ref:, event:)
-    active
-      .for_event(event)
-      .where('schema_refs = \'{}\' OR ? = ANY(schema_refs)', schema_ref)
+    active.select do |sub|
+      sub.watches_event?(event) && sub.watches_schema?(schema_ref)
+    end
   end
 
   # Check if subscription watches an event
   def watches_event?(event)
-    events.include?(event)
+    events_array.include?(event)
   end
 
   # Check if subscription watches a schema
   def watches_schema?(ref)
-    schema_refs.empty? || schema_refs.include?(ref)
+    refs = schema_refs_array
+    refs.empty? || refs.include?(ref)
+  end
+
+  def events_array
+    events.is_a?(Array) ? events : (events.present? ? JSON.parse(events) : [])
+  rescue JSON::ParserError
+    []
+  end
+
+  def schema_refs_array
+    schema_refs.is_a?(Array) ? schema_refs : (schema_refs.present? ? JSON.parse(schema_refs) : [])
+  rescue JSON::ParserError
+    []
+  end
+
+  private
+
+  def initialize_arrays
+    self.events ||= []
+    self.schema_refs ||= []
   end
 
   # Activate/deactivate

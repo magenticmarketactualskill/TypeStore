@@ -2,19 +2,16 @@
 
 class CreateCoreTables < ActiveRecord::Migration[8.1]
   def change
-    # Enable UUID extension
-    enable_extension 'pgcrypto' unless extension_enabled?('pgcrypto')
-
     # ============================================
     # Users
     # ============================================
-    create_table :users, id: :uuid do |t|
+    create_table :users, id: :string do |t|
       t.string :email, null: false
       t.string :name, null: false
       t.string :encrypted_password, null: false
       t.string :api_key_digest
       t.string :role, default: 'user', null: false
-      t.jsonb :settings, default: {}
+      t.json :settings, default: {}
       t.datetime :last_sign_in_at
 
       # Devise fields
@@ -32,11 +29,11 @@ class CreateCoreTables < ActiveRecord::Migration[8.1]
     # ============================================
     # Organizations
     # ============================================
-    create_table :organizations, id: :uuid do |t|
+    create_table :organizations, id: :string do |t|
       t.string :name, null: false
       t.string :slug, null: false
       t.text :description
-      t.jsonb :settings, default: {}
+      t.json :settings, default: {}
 
       t.timestamps
     end
@@ -46,27 +43,31 @@ class CreateCoreTables < ActiveRecord::Migration[8.1]
     # ============================================
     # Organization Memberships
     # ============================================
-    create_table :organization_memberships, id: :uuid do |t|
-      t.references :organization, null: false, foreign_key: true, type: :uuid
-      t.references :user, null: false, foreign_key: true, type: :uuid
+    create_table :organization_memberships, id: :string do |t|
+      t.string :organization_id, null: false
+      t.string :user_id, null: false
       t.string :role, default: 'member', null: false
 
       t.timestamps
     end
 
+    add_index :organization_memberships, :organization_id
+    add_index :organization_memberships, :user_id
     add_index :organization_memberships, [:organization_id, :user_id], unique: true
+    add_foreign_key :organization_memberships, :organizations
+    add_foreign_key :organization_memberships, :users
 
     # ============================================
     # Namespaces
     # ============================================
-    create_table :namespaces, id: :uuid do |t|
+    create_table :namespaces, id: :string do |t|
       t.string :name, null: false
       t.string :slug, null: false
       t.text :description
       t.string :visibility, default: 'private', null: false
       t.string :owner_type, null: false
-      t.uuid :owner_id, null: false
-      t.jsonb :settings, default: {}
+      t.string :owner_id, null: false
+      t.json :settings, default: {}
 
       t.timestamps
     end
@@ -78,100 +79,110 @@ class CreateCoreTables < ActiveRecord::Migration[8.1]
     # ============================================
     # Type Definitions
     # ============================================
-    create_table :type_definitions, id: :uuid do |t|
-      t.references :namespace, null: false, foreign_key: true, type: :uuid
+    create_table :type_definitions, id: :string do |t|
+      t.string :namespace_id, null: false
       t.string :name, null: false
       t.string :slug, null: false
       t.text :description
       t.string :category, null: false
-      t.uuid :current_version_id
+      t.string :current_version_id
       t.boolean :deprecated, default: false
       t.text :deprecation_message
-      t.jsonb :metadata, default: {}
+      t.json :metadata, default: {}
 
       t.timestamps
     end
 
+    add_index :type_definitions, :namespace_id
     add_index :type_definitions, [:namespace_id, :slug], unique: true
     add_index :type_definitions, :category
     add_index :type_definitions, :deprecated
+    add_foreign_key :type_definitions, :namespaces
 
     # ============================================
     # Type Versions
     # ============================================
-    create_table :type_versions, id: :uuid do |t|
-      t.references :type_definition, null: false, foreign_key: true, type: :uuid
+    create_table :type_versions, id: :string do |t|
+      t.string :type_definition_id, null: false
       t.string :version, null: false
       t.integer :version_major, null: false
       t.integer :version_minor, null: false
       t.integer :version_patch, null: false
-      t.jsonb :content, null: false
+      t.json :content, null: false
       t.string :content_hash, null: false
       t.string :git_sha
       t.string :git_path
       t.text :changelog
       t.datetime :published_at
-      t.references :published_by, foreign_key: { to_table: :users }, type: :uuid
+      t.string :published_by_id
 
       t.timestamps
     end
 
+    add_index :type_versions, :type_definition_id
     add_index :type_versions, [:type_definition_id, :version], unique: true
     add_index :type_versions, :git_sha
     add_index :type_versions, :content_hash
     add_index :type_versions, [:type_definition_id, :version_major, :version_minor, :version_patch],
               name: 'idx_type_versions_semver'
+    add_foreign_key :type_versions, :type_definitions
+    add_foreign_key :type_versions, :users, column: :published_by_id
 
-    # Add foreign key for current_version_id
+    # Add foreign key for current_version_id after type_versions exists
     add_foreign_key :type_definitions, :type_versions, column: :current_version_id
 
     # ============================================
     # Data Shapes
     # ============================================
-    create_table :data_shapes, id: :uuid do |t|
-      t.references :namespace, null: false, foreign_key: true, type: :uuid
+    create_table :data_shapes, id: :string do |t|
+      t.string :namespace_id, null: false
       t.string :name, null: false
       t.string :slug, null: false
       t.string :format, null: false
       t.text :description
-      t.uuid :current_version_id
+      t.string :current_version_id
       t.boolean :deprecated, default: false
       t.text :deprecation_message
-      t.jsonb :metadata, default: {}
+      t.json :metadata, default: {}
 
       t.timestamps
     end
 
+    add_index :data_shapes, :namespace_id
     add_index :data_shapes, [:namespace_id, :slug], unique: true
     add_index :data_shapes, :format
     add_index :data_shapes, :deprecated
+    add_foreign_key :data_shapes, :namespaces
 
     # ============================================
     # Shape Versions
     # ============================================
-    create_table :shape_versions, id: :uuid do |t|
-      t.references :data_shape, null: false, foreign_key: true, type: :uuid
+    create_table :shape_versions, id: :string do |t|
+      t.string :data_shape_id, null: false
       t.string :version, null: false
       t.integer :version_major, null: false
       t.integer :version_minor, null: false
       t.integer :version_patch, null: false
-      t.jsonb :content, null: false
+      t.json :content, null: false
       t.text :raw_content
       t.string :content_hash, null: false
       t.string :git_sha
       t.string :git_path
       t.text :changelog
       t.datetime :published_at
-      t.references :published_by, foreign_key: { to_table: :users }, type: :uuid
+      t.string :published_by_id
 
       t.timestamps
     end
 
+    add_index :shape_versions, :data_shape_id
     add_index :shape_versions, [:data_shape_id, :version], unique: true
     add_index :shape_versions, :git_sha
     add_index :shape_versions, :content_hash
     add_index :shape_versions, [:data_shape_id, :version_major, :version_minor, :version_patch],
               name: 'idx_shape_versions_semver'
+    add_foreign_key :shape_versions, :data_shapes
+    add_foreign_key :shape_versions, :users, column: :published_by_id
 
     # Add foreign key for current_version_id
     add_foreign_key :data_shapes, :shape_versions, column: :current_version_id
@@ -179,51 +190,56 @@ class CreateCoreTables < ActiveRecord::Migration[8.1]
     # ============================================
     # API Specs
     # ============================================
-    create_table :api_specs, id: :uuid do |t|
-      t.references :namespace, null: false, foreign_key: true, type: :uuid
+    create_table :api_specs, id: :string do |t|
+      t.string :namespace_id, null: false
       t.string :name, null: false
       t.string :slug, null: false
       t.string :spec_type, null: false
       t.text :description
-      t.uuid :current_version_id
+      t.string :current_version_id
       t.boolean :deprecated, default: false
       t.text :deprecation_message
       t.string :base_url
-      t.jsonb :metadata, default: {}
+      t.json :metadata, default: {}
 
       t.timestamps
     end
 
+    add_index :api_specs, :namespace_id
     add_index :api_specs, [:namespace_id, :slug], unique: true
     add_index :api_specs, :spec_type
     add_index :api_specs, :deprecated
+    add_foreign_key :api_specs, :namespaces
 
     # ============================================
     # API Spec Versions
     # ============================================
-    create_table :api_spec_versions, id: :uuid do |t|
-      t.references :api_spec, null: false, foreign_key: true, type: :uuid
+    create_table :api_spec_versions, id: :string do |t|
+      t.string :api_spec_id, null: false
       t.string :version, null: false
       t.integer :version_major, null: false
       t.integer :version_minor, null: false
       t.integer :version_patch, null: false
-      t.jsonb :content, null: false
+      t.json :content, null: false
       t.text :raw_content
       t.string :content_hash, null: false
       t.string :git_sha
       t.string :git_path
       t.text :changelog
       t.datetime :published_at
-      t.references :published_by, foreign_key: { to_table: :users }, type: :uuid
+      t.string :published_by_id
 
       t.timestamps
     end
 
+    add_index :api_spec_versions, :api_spec_id
     add_index :api_spec_versions, [:api_spec_id, :version], unique: true
     add_index :api_spec_versions, :git_sha
     add_index :api_spec_versions, :content_hash
     add_index :api_spec_versions, [:api_spec_id, :version_major, :version_minor, :version_patch],
               name: 'idx_api_spec_versions_semver'
+    add_foreign_key :api_spec_versions, :api_specs
+    add_foreign_key :api_spec_versions, :users, column: :published_by_id
 
     # Add foreign key for current_version_id
     add_foreign_key :api_specs, :api_spec_versions, column: :current_version_id
@@ -231,13 +247,13 @@ class CreateCoreTables < ActiveRecord::Migration[8.1]
     # ============================================
     # Schema References (tracks relationships)
     # ============================================
-    create_table :schema_references, id: :uuid do |t|
+    create_table :schema_references, id: :string do |t|
       t.string :source_type, null: false
-      t.uuid :source_id, null: false
-      t.uuid :source_version_id
+      t.string :source_id, null: false
+      t.string :source_version_id
       t.string :target_type, null: false
-      t.uuid :target_id, null: false
-      t.uuid :target_version_id
+      t.string :target_id, null: false
+      t.string :target_version_id
       t.string :reference_type, null: false
       t.string :reference_path
 
@@ -251,7 +267,7 @@ class CreateCoreTables < ActiveRecord::Migration[8.1]
     # ============================================
     # Tags
     # ============================================
-    create_table :tags, id: :uuid do |t|
+    create_table :tags, id: :string do |t|
       t.string :name, null: false
       t.string :slug, null: false
       t.string :category
@@ -267,25 +283,27 @@ class CreateCoreTables < ActiveRecord::Migration[8.1]
     # ============================================
     # Taggings (polymorphic)
     # ============================================
-    create_table :taggings, id: :uuid do |t|
-      t.references :tag, null: false, foreign_key: true, type: :uuid
+    create_table :taggings, id: :string do |t|
+      t.string :tag_id, null: false
       t.string :taggable_type, null: false
-      t.uuid :taggable_id, null: false
+      t.string :taggable_id, null: false
 
       t.timestamps
     end
 
+    add_index :taggings, :tag_id
     add_index :taggings, [:taggable_type, :taggable_id]
     add_index :taggings, [:tag_id, :taggable_type, :taggable_id], unique: true
+    add_foreign_key :taggings, :tags
 
     # ============================================
     # Access Grants
     # ============================================
-    create_table :access_grants, id: :uuid do |t|
+    create_table :access_grants, id: :string do |t|
       t.string :grantable_type, null: false
-      t.uuid :grantable_id, null: false
+      t.string :grantable_id, null: false
       t.string :grantee_type, null: false
-      t.uuid :grantee_id, null: false
+      t.string :grantee_id, null: false
       t.string :permission, null: false
       t.datetime :expires_at
 
@@ -298,32 +316,34 @@ class CreateCoreTables < ActiveRecord::Migration[8.1]
     # ============================================
     # Audit Logs
     # ============================================
-    create_table :audit_logs, id: :uuid do |t|
+    create_table :audit_logs, id: :string do |t|
       t.string :auditable_type, null: false
-      t.uuid :auditable_id, null: false
-      t.references :user, foreign_key: true, type: :uuid
+      t.string :auditable_id, null: false
+      t.string :user_id
       t.string :action, null: false
-      t.jsonb :changes_data
-      t.jsonb :metadata, default: {}
-      t.inet :ip_address
+      t.json :changes_data
+      t.json :metadata, default: {}
+      t.string :ip_address
       t.text :user_agent
 
       t.timestamps
     end
 
     add_index :audit_logs, [:auditable_type, :auditable_id]
+    add_index :audit_logs, :user_id
     add_index :audit_logs, :created_at
+    add_foreign_key :audit_logs, :users
 
     # ============================================
     # Validation Cache
     # ============================================
-    create_table :validation_caches, id: :uuid do |t|
+    create_table :validation_caches, id: :string do |t|
       t.string :schema_type, null: false
-      t.uuid :schema_id, null: false
-      t.uuid :schema_version_id, null: false
+      t.string :schema_id, null: false
+      t.string :schema_version_id, null: false
       t.string :data_hash, null: false
       t.boolean :is_valid, null: false
-      t.jsonb :errors
+      t.json :errors
 
       t.timestamps
     end
@@ -334,17 +354,19 @@ class CreateCoreTables < ActiveRecord::Migration[8.1]
     # ============================================
     # Webhook Subscriptions
     # ============================================
-    create_table :webhook_subscriptions, id: :uuid do |t|
-      t.references :user, null: false, foreign_key: true, type: :uuid
+    create_table :webhook_subscriptions, id: :string do |t|
+      t.string :user_id, null: false
       t.string :url, null: false
       t.string :secret
-      t.string :events, array: true, default: []
-      t.string :schema_refs, array: true, default: []
+      t.text :events      # Store as JSON string
+      t.text :schema_refs # Store as JSON string
       t.boolean :active, default: true
 
       t.timestamps
     end
 
+    add_index :webhook_subscriptions, :user_id
     add_index :webhook_subscriptions, :active
+    add_foreign_key :webhook_subscriptions, :users
   end
 end
