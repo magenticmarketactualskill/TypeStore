@@ -35,8 +35,8 @@ gem "rack-cors"
 # TypeStore-specific gems
 # ============================================
 
-# Git integration
-gem "rugged", "~> 1.7"
+# Git integration (commented out - rugged requires specific libgit2 version)
+# gem "rugged", "~> 1.7"
 
 # Validation engines
 gem "json_schemer", "~> 2.0"      # JSON Schema validation
