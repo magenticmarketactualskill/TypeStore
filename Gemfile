@@ -50,7 +50,7 @@ gem "shacl", "~> 0.4"             # SHACL validation
 # Search (using basic SQL LIKE for SQLite compatibility)
 
 # Authentication
-gem "devise", "~> 4.9"
+gem "devise", "~> 5.0"
 
 # Pagination
 gem "pagy", "~> 9.0"
